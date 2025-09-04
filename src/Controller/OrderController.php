@@ -5,18 +5,20 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DTO\CreateOrderRequest;
-use App\Entity\OrderStatus;
+use App\DTO\ListOrdersQuery;
+use App\DTO\UpdateOrderStatusRequest;
+use App\Entity\Order;
 use App\Repository\OrderRepository;
 use App\Service\OrderServiceInterface;
 use App\Transformer\OrderToViewTransformerInterface;
+use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Attribute\MapQueryString;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Serializer\SerializerInterface;
-use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 
 #[Route('/api/orders')]
 class OrderController extends AbstractController
@@ -25,29 +27,25 @@ class OrderController extends AbstractController
         private readonly OrderRepository $orderRepository,
         private readonly OrderServiceInterface $orderService,
         private readonly OrderToViewTransformerInterface $orderTransformer,
-        private readonly SerializerInterface $serializer,
-        private readonly ValidatorInterface $validator,
     ) {
     }
 
     #[Route('', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
-    {
-        $page = max(1, (int) $request->query->get('page', 1));
-        $limit = min(100, max(1, (int) $request->query->get('limit', 10)));
-
-        $status = $this->parseStatus($request->query->get('status'));
-        $dateFrom = $this->parseDate($request->query->get('date_from'));
-        $dateTo = $this->parseDate($request->query->get('date_to'));
-        $email = $request->query->get('email');
-
+    public function list(
+        #[MapQueryString(
+            serializationContext: [
+                DateTimeNormalizer::FORMAT_KEY => 'Y-m-d',
+            ]
+        )]
+        ListOrdersQuery $query
+    ): JsonResponse {
         $paginator = $this->orderRepository->findWithFilters(
-            page: $page,
-            limit: $limit,
-            status: $status,
-            dateFrom: $dateFrom,
-            dateTo: $dateTo,
-            email: $email,
+            page: $query->page,
+            limit: $query->limit,
+            status: $query->status,
+            dateFrom: $query->dateFrom,
+            dateTo: $query->dateTo,
+            email: $query->email,
         );
 
         $orders = [];
@@ -58,26 +56,18 @@ class OrderController extends AbstractController
         return $this->json([
             'data' => $orders,
             'meta' => [
-                'page' => $page,
-                'limit' => $limit,
+                'page' => $query->page,
+                'limit' => $query->limit,
                 'total' => count($paginator),
-                'pages' => (int) ceil(count($paginator) / $limit),
+                'pages' => (int) ceil(count($paginator) / $query->limit),
             ],
         ], context: ['groups' => ['order:read']]);
     }
 
     #[Route('/{id}', methods: ['GET'], requirements: ['id' => '\d+'])]
-    public function show(int $id): JsonResponse
-    {
-        $order = $this->orderRepository->find($id);
-
-        if (!$order) {
-            return $this->json(
-                ['error' => 'Order not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
+    public function show(
+        #[MapEntity(id: 'id')] Order $order
+    ): JsonResponse {
         $viewOrder = $this->orderTransformer->transform($order);
 
         return $this->json(
@@ -96,24 +86,18 @@ class OrderController extends AbstractController
         return $this->json(
             $viewOrder,
             Response::HTTP_CREATED,
+            [
+                'Location' => sprintf('/api/orders/%d', $order->getId()),
+            ],
             context: ['groups' => ['order:read']]
         );
     }
 
     #[Route('/{id}', requirements: ['id' => '\d+'], methods: ['PUT'])]
     public function update(
-        int $id,
+        #[MapEntity(id: 'id')] Order $order,
         #[MapRequestPayload] CreateOrderRequest $request
     ): JsonResponse {
-        $order = $this->orderRepository->find($id);
-
-        if (!$order) {
-            return $this->json(
-                ['error' => 'Order not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
         $updatedOrder = $this->orderService->updateOrder($order, $request);
         $viewOrder = $this->orderTransformer->transform($updatedOrder);
 
@@ -123,18 +107,10 @@ class OrderController extends AbstractController
         );
     }
 
-    #[Route('/{id}', methods: ['DELETE'], requirements: ['id' => '\d+'])]
-    public function delete(int $id): JsonResponse
-    {
-        $order = $this->orderRepository->find($id);
-
-        if (!$order) {
-            return $this->json(
-                ['error' => 'Order not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
+    #[Route('/{id}', requirements: ['id' => '\d+'], methods: ['DELETE'])]
+    public function delete(
+        #[MapEntity(id: 'id')] Order $order
+    ): JsonResponse {
         $this->orderService->deleteOrder($order);
 
         return $this->json(null, Response::HTTP_NO_CONTENT);
@@ -142,42 +118,17 @@ class OrderController extends AbstractController
 
     #[Route(
         '/{id}/status',
-        methods: ['PATCH'],
-        requirements: ['id' => '\d+']
+        requirements: ['id' => '\d+'],
+        methods: ['PATCH']
     )]
-    public function updateStatus(int $id, Request $request): JsonResponse
-    {
-        $order = $this->orderRepository->find($id);
-
-        if (!$order) {
-            return $this->json(
-                ['error' => 'Order not found'],
-                Response::HTTP_NOT_FOUND
-            );
-        }
-
-        $data = json_decode($request->getContent(), true);
-        $statusValue = $data['status'] ?? null;
-
-        if (!$statusValue) {
-            return $this->json(
-                ['error' => 'Status is required'],
-                Response::HTTP_BAD_REQUEST
-            );
-        }
-
-        $status = $this->parseStatus($statusValue);
-        if (!$status) {
-            return $this->json(
-                ['error' => 'Invalid status'],
-                Response::HTTP_BAD_REQUEST
-            );
-        }
-
+    public function updateStatus(
+        #[MapEntity(id: 'id')] Order $order,
+        #[MapRequestPayload] UpdateOrderStatusRequest $request
+    ): JsonResponse {
         try {
             $updatedOrder = $this->orderService->updateOrderStatus(
                 $order,
-                $status
+                $request->status
             );
             $viewOrder = $this->orderTransformer->transform($updatedOrder);
 
@@ -187,31 +138,15 @@ class OrderController extends AbstractController
             );
         } catch (\InvalidArgumentException $e) {
             return $this->json(
-                ['error' => $e->getMessage()],
-                Response::HTTP_BAD_REQUEST
+                [
+                    'type' => 'https://tools.ietf.org/html/rfc2616#section-10',
+                    'title' => 'Bad Request',
+                    'status' => 400,
+                    'detail' => $e->getMessage(),
+                ],
+                Response::HTTP_BAD_REQUEST,
+                ['Content-Type' => 'application/problem+json']
             );
-        }
-    }
-
-    private function parseStatus(?string $status): ?OrderStatus
-    {
-        if ($status === null) {
-            return null;
-        }
-
-        return OrderStatus::tryFrom($status);
-    }
-
-    private function parseDate(?string $date): ?\DateTimeInterface
-    {
-        if ($date === null) {
-            return null;
-        }
-
-        try {
-            return new \DateTimeImmutable($date);
-        } catch (\Exception) {
-            return null;
         }
     }
 }
