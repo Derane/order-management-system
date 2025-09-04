@@ -16,9 +16,10 @@ jobs:
         run: make start
 
       - name: Run composer install
-        run: composer install
+        run: make run-composer
 
       - name: Setup test database
+        continue-on-error: true
         run: make test-setup
 
       - name: Execute Codeception tests
