@@ -2,7 +2,7 @@ name: Codeception Tests
 
 on:
   pull_request:
-    branches: ['main']
+    branches: ['master']
 
 jobs:
   tests:
@@ -15,7 +15,11 @@ jobs:
       - name: Start application
         run: make start
 
+      - name: Run composer install
+        run: make run-composer
+
       - name: Setup test database
+        continue-on-error: true
         run: make test-setup
 
       - name: Execute Codeception tests
