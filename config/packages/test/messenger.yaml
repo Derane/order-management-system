@@ -1,0 +1,11 @@
+framework:
+    messenger:
+        transports:
+            # Use sync transport for tests to avoid async complexity
+            async: 'sync://'
+            failed: 'sync://'
+            sync: 'sync://'
+
+        routing:
+            App\Message\OrderCreatedMessage: sync
+            App\Message\OrderStatusChangedMessage: sync
