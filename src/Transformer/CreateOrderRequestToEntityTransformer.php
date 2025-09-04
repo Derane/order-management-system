@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Transformer;
 
+use App\DTO\CreateOrderItemRequest;
 use App\DTO\CreateOrderRequest;
 use App\Entity\Order;
 use App\Util\MoneyFormatterInterface;
@@ -32,9 +33,8 @@ final class CreateOrderRequestToEntityTransformer implements
     private function addItemsToOrder(Order $order, array $items): void
     {
         foreach ($items as $itemData) {
-            // Convert array to CreateOrderItemRequest if needed
             if (is_array($itemData)) {
-                $itemRequest = new \App\DTO\CreateOrderItemRequest(
+                $itemRequest = new CreateOrderItemRequest(
                     $itemData['productName'] ?? '',
                     (int) ($itemData['quantity'] ?? 1),
                     (float) ($itemData['price'] ?? 0.0)

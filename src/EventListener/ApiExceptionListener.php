@@ -35,14 +35,14 @@ final class ApiExceptionListener
             $statusCode = Response::HTTP_UNPROCESSABLE_ENTITY;
             $title = 'Validation Failed';
             $violationList = $exception->getViolations();
-            
+
             foreach ($violationList as $violation) {
                 $violations[] = [
                     'field' => $violation->getPropertyPath(),
                     'message' => $violation->getMessage(),
                 ];
             }
-            
+
             $detail = sprintf(
                 'Validation failed with %d violation(s)',
                 count($violations)
