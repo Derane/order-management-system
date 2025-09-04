@@ -23,48 +23,70 @@ final class ApiExceptionListener
 
         $exception = $event->getThrowable();
         $statusCode = Response::HTTP_INTERNAL_SERVER_ERROR;
-        $message = 'An error occurred';
-
-
+        $title = 'Internal Server Error';
+        $detail = 'An error occurred';
+        $violations = [];
 
         if ($exception instanceof UnprocessableEntityHttpException) {
             $statusCode = Response::HTTP_UNPROCESSABLE_ENTITY;
-            $message = $exception->getMessage();
+            $title = 'Unprocessable Entity';
+            $detail = $exception->getMessage();
         } elseif ($exception instanceof ValidationFailedException) {
             $statusCode = Response::HTTP_UNPROCESSABLE_ENTITY;
-            $violations = $exception->getViolations();
-            $errors = [];
-
-            foreach ($violations as $violation) {
-                $errors[] = $violation->getMessage();
+            $title = 'Validation Failed';
+            $violationList = $exception->getViolations();
+            
+            foreach ($violationList as $violation) {
+                $violations[] = [
+                    'field' => $violation->getPropertyPath(),
+                    'message' => $violation->getMessage(),
+                ];
             }
-
-            $message = implode(', ', $errors);
+            
+            $detail = sprintf(
+                'Validation failed with %d violation(s)',
+                count($violations)
+            );
         } elseif ($exception instanceof \InvalidArgumentException) {
-            $message = $exception->getMessage();
-            if (str_contains($message, 'should not be blank') ||
-                str_contains($message, 'should be greater than') ||
-                str_contains($message, 'should be positive') ||
-                str_contains($message, 'is not a valid email') ||
-                str_contains($message, 'at least one item is required')) {
+            $detail = $exception->getMessage();
+            if (str_contains($detail, 'should not be blank') ||
+                str_contains($detail, 'should be greater than') ||
+                str_contains($detail, 'should be positive') ||
+                str_contains($detail, 'is not a valid email') ||
+                str_contains($detail, 'at least one item is required')) {
                 $statusCode = Response::HTTP_UNPROCESSABLE_ENTITY;
+                $title = 'Unprocessable Entity';
             } else {
                 $statusCode = Response::HTTP_BAD_REQUEST;
+                $title = 'Bad Request';
             }
         } elseif ($exception instanceof HttpExceptionInterface) {
             $statusCode = $exception->getStatusCode();
-            $message = $exception->getMessage();
-        } else {
-            $message = $exception->getMessage() ?: 'Unknown error';
-            if (str_contains(strtolower($message), 'validation') ||
-                str_contains(strtolower($message), 'constraint')) {
-                $statusCode = Response::HTTP_UNPROCESSABLE_ENTITY;
-            }
+            $title = match ($statusCode) {
+                404 => 'Not Found',
+                400 => 'Bad Request',
+                422 => 'Unprocessable Entity',
+                default => 'HTTP Error',
+            };
+            $detail = $exception->getMessage();
         }
 
-        $response = new JsonResponse([
-            'error' => $message,
-        ], $statusCode);
+        $problemData = [
+            'type' => 'https://tools.ietf.org/html/rfc2616#section-10',
+            'title' => $title,
+            'status' => $statusCode,
+            'detail' => $detail,
+        ];
+
+        if (!empty($violations)) {
+            $problemData['violations'] = $violations;
+        }
+
+        $response = new JsonResponse(
+            $problemData,
+            $statusCode,
+            ['Content-Type' => 'application/problem+json']
+        );
 
         $event->setResponse($response);
     }
