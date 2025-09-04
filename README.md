@@ -1,6 +1,5 @@
 # Order Management System
 
-
 ## 📋 Prerequisites
 
 - **Docker** (20.x or higher)
@@ -14,6 +13,7 @@
    git clone https://github.com/Derane/order-management-system
    cd order-management-system
    make start
+   make run-composer
    ```
 
 2. **Setup database:**
