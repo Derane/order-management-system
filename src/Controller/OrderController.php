@@ -8,7 +8,7 @@ use App\DTO\CreateOrderRequest;
 use App\DTO\ListOrdersQuery;
 use App\DTO\UpdateOrderStatusRequest;
 use App\Entity\Order;
-use App\Repository\OrderRepository;
+use App\Repository\OrderRepositoryInterface;
 use App\Service\OrderServiceInterface;
 use App\Transformer\OrderToViewTransformerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -24,7 +24,7 @@ use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
 class OrderController extends AbstractController
 {
     public function __construct(
-        private readonly OrderRepository $orderRepository,
+        private readonly OrderRepositoryInterface $orderRepository,
         private readonly OrderServiceInterface $orderService,
         private readonly OrderToViewTransformerInterface $orderTransformer,
     ) {

@@ -13,7 +13,7 @@ use Doctrine\Persistence\ManagerRegistry;
 /**
  * @extends ServiceEntityRepository<Order>
  */
-class OrderRepository extends ServiceEntityRepository
+class OrderRepository extends ServiceEntityRepository implements OrderRepositoryInterface
 {
     public function __construct(ManagerRegistry $registry)
     {
@@ -33,27 +33,27 @@ class OrderRepository extends ServiceEntityRepository
 
         if ($status !== null) {
             $qb->andWhere('o.status = :status')
-               ->setParameter('status', $status);
+                ->setParameter('status', $status);
         }
 
         if ($dateFrom !== null) {
             $qb->andWhere('o.createdAt >= :dateFrom')
-               ->setParameter('dateFrom', $dateFrom);
+                ->setParameter('dateFrom', $dateFrom);
         }
 
         if ($dateTo !== null) {
             $qb->andWhere('o.createdAt <= :dateTo')
-               ->setParameter('dateTo', $dateTo);
+                ->setParameter('dateTo', $dateTo);
         }
 
         if ($email !== null) {
             $qb->andWhere('o.customerEmail LIKE :email')
-               ->setParameter('email', '%' . $email . '%');
+                ->setParameter('email', '%' . $email . '%');
         }
 
         $offset = ($page - 1) * $limit;
         $qb->setFirstResult($offset)
-           ->setMaxResults($limit);
+            ->setMaxResults($limit);
 
         return new Paginator($qb->getQuery());
     }
