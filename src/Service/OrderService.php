@@ -7,9 +7,8 @@ namespace App\Service;
 use App\DTO\CreateOrderRequest;
 use App\Entity\Order;
 use App\Entity\OrderStatus;
-use App\Event\OrderCreatedEvent;
-use App\Event\OrderStatusChangedEvent;
-use App\Repository\OrderRepository;
+use App\Factory\EventFactoryInterface;
+use App\Repository\OrderRepositoryInterface;
 use App\Transformer\CreateOrderRequestToEntityTransformerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
@@ -17,10 +16,11 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 final class OrderService implements OrderServiceInterface
 {
     public function __construct(
-        private readonly OrderRepository $orderRepository,
+        private readonly OrderRepositoryInterface $orderRepository,
         private readonly CreateOrderRequestToEntityTransformerInterface $transformer,
         private readonly ValidatorInterface $validator,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly EventFactoryInterface $eventFactory,
     ) {
     }
 
@@ -34,7 +34,7 @@ final class OrderService implements OrderServiceInterface
         $this->orderRepository->save($order);
 
         $this->eventDispatcher->dispatch(
-            new OrderCreatedEvent($order)
+            $this->eventFactory->createOrderCreatedEvent($order)
         );
 
         return $order;
@@ -64,19 +64,18 @@ final class OrderService implements OrderServiceInterface
         $this->orderRepository->save($order);
 
         if ($originalStatus !== $order->getStatus()) {
-            $this->eventDispatcher->dispatch(
-                new OrderStatusChangedEvent(
-                    $order,
-                    $originalStatus,
-                    $order->getStatus()
-                ),
-                OrderStatusChangedEvent::class
+            $event = $this->eventFactory->createOrderStatusChangedEvent(
+                $order,
+                $originalStatus,
+                $order->getStatus()
             );
+            $this->eventDispatcher->dispatch($event);
         }
 
         return $order;
     }
 
+    #[\Override]
     public function updateOrderStatus(
         Order $order,
         OrderStatus $status
@@ -92,18 +91,17 @@ final class OrderService implements OrderServiceInterface
 
         $this->orderRepository->save($order);
 
-        $this->eventDispatcher->dispatch(
-            new OrderStatusChangedEvent(
-                $order,
-                $originalStatus,
-                $status
-            ),
-            OrderStatusChangedEvent::class
+        $event = $this->eventFactory->createOrderStatusChangedEvent(
+            $order,
+            $originalStatus,
+            $status
         );
+        $this->eventDispatcher->dispatch($event);
 
         return $order;
     }
 
+    #[\Override]
     public function deleteOrder(Order $order): void
     {
         $this->orderRepository->remove($order);

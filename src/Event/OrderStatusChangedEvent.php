@@ -10,7 +10,6 @@ use Symfony\Contracts\EventDispatcher\Event;
 
 final class OrderStatusChangedEvent extends Event
 {
-
     public function __construct(
         private readonly Order $order,
         private readonly OrderStatus $oldStatus,
