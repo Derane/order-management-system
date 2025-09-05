@@ -7,7 +7,7 @@ namespace App\MessageHandler;
 use App\Entity\OrderStatus;
 use App\Message\OrderCreatedMessage;
 use App\Message\OrderStatusChangedMessage;
-use App\Repository\OrderRepository;
+use App\Repository\OrderRepositoryInterface;
 use App\Service\EmailServiceInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -15,7 +15,7 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 final class EmailNotificationHandler
 {
     public function __construct(
-        private readonly OrderRepository $orderRepository,
+        private readonly OrderRepositoryInterface $orderRepository,
         private readonly EmailServiceInterface $emailService,
         private readonly LoggerInterface $logger,
     ) {
